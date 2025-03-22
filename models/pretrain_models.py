@@ -1,56 +1,178 @@
-# Download test image.
+
+from transformers import AutoImageProcessor, AutoModelForImageClassification
 from PIL import Image
-from io import BytesIO
-from IPython.display import Image as IPImage, display
-from huggingface_hub import from_pretrained_keras
-import tensorflow as tf
-import requests
+import torch
 
-
-
-
-def google_derm_cnn(path: str) -> dict:
+def skintellegent_acne(path: str, distribution=False) -> dict:
     """
-    Runs inference on the given dermatology image and returns the embedding vector.
-    Parameters:
-        path (str): Path to the image.
+    https://huggingface.co/imfarzanansari/skintelligent-acne#severity-levels
+
+    Classifies acne severity levels from a facial image.
+
+    Levels:
+    - Level -1: Clear Skin
+    - Level 0: Occasional Spots
+    - Level 1: Mild Acne
+    - Level 2: Moderate Acne
+    - Level 3: Severe Acne
+    - Level 4: Very Severe Acne
+
+    Args:
+        path (str): Path to the input image.
+
     Returns:
-        dict: Embedding vector.
+        dict: Predicted acne severity level and confidence score.
     """
-    # Load the image
-    img = Image.open(path)
-    buf = BytesIO()
-    img.convert('RGB').save(buf, 'PNG')
-    image_bytes = buf.getvalue()
+    # Load model and processor
+    processor = AutoImageProcessor.from_pretrained("imfarzanansari/skintelligent-acne")
+    model = AutoModelForImageClassification.from_pretrained("imfarzanansari/skintelligent-acne")
 
-    # Format input
-    input_tensor = tf.train.Example(features=tf.train.Features(
-        feature={'image/encoded': tf.train.Feature(
-            bytes_list=tf.train.BytesList(value=[image_bytes]))
-        })).SerializeToString()
-
-    # Load the model directly from Hugging Face Hub
-    loaded_model = from_pretrained_keras("google/derm-foundation")
-
-    # Call inference
-    infer = loaded_model.signatures["serving_default"]
-    output = infer(inputs=tf.constant([input_tensor]))
-
-    # Extract the embedding vector
-    embedding_vector = output['embedding'].numpy().flatten()
-
-    return {"embedding_vector": embedding_vector}
+    # Load and preprocess image
+    image = Image.open(path)
+    inputs = processor(images=image, return_tensors="pt")
 
 
+    outputs = model(**inputs)
+    predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+    predicted_class = predictions.argmax().item()
+    confidence = predictions[0][predicted_class].item()
+
+    if distribution:    
+        result = {}
+        for idx, score in enumerate(predictions[0]):
+            label = model.config.id2label[idx]
+            result[label] = round(score.item(), 4)
+
+        return result
+    else:
+        result = {
+        "class": model.config.id2label[predicted_class],
+        "confidence": round(confidence, 4)
+        }
+        return result
 
 
+def skin_disease_classifier(path: str, distribution=False) -> dict:
+    """
+    https://huggingface.co/Jayanth2002/dinov2-base-finetuned-SkinDisease
+
+    Classifies skin diseases based on the provided image.
+
+    Supported Skin Disease Classes:
+    - Basal Cell Carcinoma
+    - Darier's Disease
+    - Epidermolysis Bullosa Pruriginosa
+    - Hailey-Hailey Disease
+    - Herpes Simplex
+    - Impetigo
+    - Larva Migrans
+    - Leprosy (Borderline, Lepromatous, Tuberculoid)
+    - Lichen Planus
+    - Lupus Erythematosus Chronicus Discoides
+    - Melanoma
+    - Molluscum Contagiosum
+    - Mycosis Fungoides
+    - Neurofibromatosis
+    - Papillomatosis Confluentes And Reticulate
+    - Pediculosis Capitis
+    - Pityriasis Rosea
+    - Porokeratosis Actinic
+    - Psoriasis
+    - Tinea Corporis
+    - Tinea Nigra
+    - Tungiasis
+    - Actinic Keratosis
+    - Dermatofibroma
+    - Nevus
+    - Pigmented Benign Keratosis
+    - Seborrheic Keratosis
+    - Squamous Cell Carcinoma
+    - Vascular Lesion
+
+    Args:
+        path (str): Path to the input skin image.
+
+    Returns:
+        dict: Predicted skin disease class and confidence score.
+    """
+
+    # Load model and processor
+    processor = AutoImageProcessor.from_pretrained("Jayanth2002/dinov2-base-finetuned-SkinDisease")
+    model = AutoModelForImageClassification.from_pretrained("Jayanth2002/dinov2-base-finetuned-SkinDisease")
+
+    # Load and preprocess image
+    image = Image.open(path)
+    inputs = processor(images=image, return_tensors="pt")
+
+    # Inference (no gradients)
+    outputs = model(**inputs)
+    predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+    predicted_class = predictions.argmax().item()
+    confidence = predictions[0][predicted_class].item()
+
+    if distribution:    
+        result = {}
+        for idx, score in enumerate(predictions[0]):
+            label = model.config.id2label[idx]
+            result[label] = round(score.item(), 4)
+
+        return result
+    else:
+        result = {
+        "class": model.config.id2label[predicted_class],
+        "confidence": round(confidence, 4)
+        }
+        return result
 
 
+def skin_type_classifier(path: str, distribution=False) -> dict:
+    """
+    https://huggingface.co/dima806/skin_types_image_detection
 
-url = "https://storage.googleapis.com/dx-scin-public-data/dataset/images/3445096909671059178.png"
-response = requests.get(url)
+    Classifies skin type from an input image.
 
-with open("3445096909671059178.png", "wb") as f:
-    f.write(response.content)
+    Skin Types:
+    - Dry
+    - Oily
+    - Normal
 
-print("Image downloaded successfully!")
+    Args:
+        path (str): Path to the input skin image.
+
+    Returns:
+        dict: Predicted skin type and confidence score.
+    """
+    # Load model and processor
+    processor = AutoImageProcessor.from_pretrained("dima806/skin_types_image_detection")
+    model = AutoModelForImageClassification.from_pretrained("dima806/skin_types_image_detection")
+
+    # Load and preprocess image
+    image = Image.open(path)
+    inputs = processor(images=image, return_tensors="pt")
+
+    outputs = model(**inputs)
+    predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+    predicted_class = predictions.argmax().item()
+    confidence = predictions[0][predicted_class].item()
+
+    if distribution:    
+        result = {}
+        for idx, score in enumerate(predictions[0]):
+            label = model.config.id2label[idx]
+            result[label] = round(score.item(), 4)
+
+        return result
+    else:
+        result = {
+        "class": model.config.id2label[predicted_class],
+        "confidence": round(confidence, 4)
+        }
+        return result
+
+# Test
+image_path = "3445096909671059178.png"
+
+
+print(skintellegent_acne(image_path, True))
+print(skin_disease_classifier(image_path, True))
+print(skin_type_classifier(image_path, True))
