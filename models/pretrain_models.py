@@ -2,6 +2,8 @@
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 from PIL import Image
 import torch
+import requests
+import os
 
 #Vision Transformer (ViT)
 def skintellegent_acne(path: str, distribution=False) -> dict:
@@ -32,11 +34,12 @@ def skintellegent_acne(path: str, distribution=False) -> dict:
     image = Image.open(path)
     inputs = processor(images=image, return_tensors="pt")
 
+    with torch.no_grad():
 
-    outputs = model(**inputs)
-    predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
-    predicted_class = predictions.argmax().item()
-    confidence = predictions[0][predicted_class].item()
+        outputs = model(**inputs)
+        predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+        predicted_class = predictions.argmax().item()
+        confidence = predictions[0][predicted_class].item()
 
     if distribution:    
         result = {}
@@ -106,10 +109,11 @@ def skin_disease_classifier(path: str, distribution=False) -> dict:
     inputs = processor(images=image, return_tensors="pt")
 
     # Inference (no gradients)
-    outputs = model(**inputs)
-    predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
-    predicted_class = predictions.argmax().item()
-    confidence = predictions[0][predicted_class].item()
+    with torch.no_grad():
+        outputs = model(**inputs)
+        predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+        predicted_class = predictions.argmax().item()
+        confidence = predictions[0][predicted_class].item()
 
     if distribution:    
         result = {}
@@ -151,10 +155,11 @@ def skin_type_classifier(path: str, distribution=False) -> dict:
     image = Image.open(path)
     inputs = processor(images=image, return_tensors="pt")
 
-    outputs = model(**inputs)
-    predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
-    predicted_class = predictions.argmax().item()
-    confidence = predictions[0][predicted_class].item()
+    with torch.no_grad():
+        outputs = model(**inputs)
+        predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+        predicted_class = predictions.argmax().item()
+        confidence = predictions[0][predicted_class].item()
 
     if distribution:    
         result = {}
@@ -202,10 +207,11 @@ def skin_cancer_classifier(path: str, distribution=False) -> dict:
     image = Image.open(path)
     inputs = processor(images=image, return_tensors="pt")
 
-    outputs = model(**inputs)
-    predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
-    predicted_class = predictions.argmax().item()
-    confidence = predictions[0][predicted_class].item()
+    with torch.no_grad():
+        outputs = model(**inputs)
+        predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+        predicted_class = predictions.argmax().item()
+        confidence = predictions[0][predicted_class].item()
 
     if distribution:
         result = {}
@@ -221,11 +227,36 @@ def skin_cancer_classifier(path: str, distribution=False) -> dict:
         return result
 
 
-# Test
-image_path = "3445096909671059178.png"
+def parallel_vit_process(path: str):
+    print("working")
 
+
+# Image URL
+url = "https://www.dermaamin.com/site/images/clinical-pic/n/neurofibromatosis-von-reckling-hausen-syndrome/neurofibromatosis-von-reckling-hausen-syndrome90.jpg"
+filename = "neurofibromatosis-von-reckling-hausen-syndrome90.jpg"
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+}
+
+print("working")
+# Download the image only if it doesn't exist
+import os
+if not os.path.exists(filename):
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        with open(filename, 'wb') as f:
+            f.write(response.content)
+        print(f"Image saved as {filename}")
+    else:
+        print("Failed to download image.")
+else:
+    print("Image already exists.")
+
+# Load and display image
+img = Image.open(filename)
+img.show()
 
 #print(skintellegent_acne(image_path, True))
-#print(skin_disease_classifier(image_path, True))
+print(skin_disease_classifier(filename))
 #print(skin_type_classifier(image_path, True))
-print(skin_cancer_classifier(image_path, True))
+#print(skin_cancer_classifier(image_path, True))
