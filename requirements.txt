@@ -1,0 +1,4 @@
+tensorflow
+huggingface_hub
+ipython
+pillow
