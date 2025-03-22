@@ -1,44 +1,43 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 import uvicorn
-
-
-
-
+import shutil
+import os
+import models.pretrain_models 
 
 app = FastAPI()
 
-# Serve static files
+# Serve static and templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
-async def main():
-    content = """
-    <html>
-        <head>
-            <title>AI Prompt + Image Upload</title>
-            <link rel="stylesheet" type="text/css" href="/static/style.css">
-        </head>
-        <body>
-            <div class="container">
-                <h1>DermaInsight</h1>
-                <form action="/upload/" enctype="multipart/form-data" method="post">
-                    <input type="text" name="prompt" placeholder="Enter your prompt here"/><br/>
-                    <input name="file" type="file" accept=".jpg, .jpeg, .png"/><br/>
-                    <button type="submit">Submit</button>
-                </form>
-            </div>
-        </body>
-    </html>
-    """
-    return content
+async def main(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
-@app.post("/upload/")
-async def upload(prompt: str = Form(...), file: UploadFile = File(...)):
-    # Process prompt and image here
-    return {"message": "Received!", "prompt": prompt, "filename": file.filename}
+@app.post("/upload/", response_class=HTMLResponse)
+async def upload(request: Request, prompt: str = Form(""), file: UploadFile = File(None)):
+    # Check if user uploaded an image
+    if not file or file.filename == "":
+        # Simply return the original form again
+        return templates.TemplateResponse("index.html", {"request": request})
 
-# Run app
+    # Save uploaded image
+    save_path = f"temp_{file.filename}"
+    with open(save_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Run models
+    result = models.pretrain_models.parallel_vit_process(save_path)
+    os.remove(save_path)  # Clean up temp file
+
+    return templates.TemplateResponse("result.html", {
+        "request": request,
+        "prompt": prompt,
+        "result": result
+    })
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

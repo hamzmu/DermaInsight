@@ -1,0 +1,16 @@
+<html>
+    <head>
+        <title>DermaInsight</title>
+        <link rel="stylesheet" type="text/css" href="/static/style.css">
+    </head>
+    <body>
+        <h1 class="title">DermaInsight</h1>
+        <div class="container">
+            <form action="/upload/" enctype="multipart/form-data" method="post">
+                <input type="text" name="prompt" placeholder="Enter your prompt here"/><br/>
+                <input name="file" type="file" accept=".jpg, .jpeg, .png"/><br/>
+                <button type="submit">Submit</button>
+            </form>
+        </div>
+    </body>
+</html>
