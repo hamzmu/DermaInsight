@@ -227,8 +227,9 @@ def skin_cancer_classifier(path: str, distribution=False) -> dict:
         return result
 
 
-# Testimport requests
-from PIL import Image
+def parallel_vit_process(path: str):
+    print("working")
+
 
 # Image URL
 url = "https://www.dermaamin.com/site/images/clinical-pic/n/neurofibromatosis-von-reckling-hausen-syndrome/neurofibromatosis-von-reckling-hausen-syndrome90.jpg"
