@@ -6,18 +6,9 @@
     <body>
         <h1 class="title">DermaInsight - Results</h1>
         <div class="container">
-            {% if prompt %}
-            <h3>Prompt:</h3>
-            <p>{{ prompt }}</p>
-            {% endif %}
-            
             {% if result %}
             <h3>Model Results:</h3>
-            <ul>
-                {% for key, value in result.items() %}
-                    <li><strong>{{ key.capitalize() }}:</strong> {{ value }}</li>
-                {% endfor %}
-            </ul>
+            <p> {{result}}</p>
             {% else %}
             <p>No image uploaded, nothing processed.</p>
             {% endif %}
