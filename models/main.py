@@ -139,7 +139,7 @@ def chunk_text(text: str, chunk_size: int = 250, overlap: int = 50) -> list:
         chunks.append(" ".join(current_chunk))
 
     # Additional check to ensure no chunk is too large for the API
-    max_bytes = 35000  # Safe limit below the 36000 byte API limit
+    max_bytes = 30000  # Safe limit below the 36000 byte API limit
     final_chunks = []
     for chunk in chunks:
         if len(chunk.encode('utf-8')) > max_bytes:
@@ -340,19 +340,86 @@ def diagnose_with_gemini(query: str, context: list) -> str:
     - Suggest follow-up questions if necessary.
     - Provide recommended treatments.
     """
+    
+    # Model candidates to try in order
+    model_candidates = [
+        'gemini-1.0-pro',
+        'gemini-1.5-pro', 
+        'gemini-1.5-flash',
+        'models/text-bison-001'
+    ]
+    
+    last_error = None
+    for model_name in model_candidates:
+        try:
+            logger.info(f"Attempting to use model: {model_name}")
+            
+            # PaLM models use a different API pattern than Gemini
+            if model_name.startswith('models/'):
+                # Use TextGenerationModel for PaLM models
+                palm_model = genai.TextGenerationModel(model_name)
+                response = palm_model.generate_text(
+                    prompt=prompt, 
+                    temperature=0.2,
+                    max_output_tokens=2048
+                )
+                diagnosis_text = response.result
+            else:
+                # Use GenerativeModel for Gemini models
+                model = genai.GenerativeModel(model_name)
+                
+                # Generate content with configurations
+                generation_config = {
+                    "temperature": 0.2,  # Lower temperature for more deterministic outputs
+                    "top_p": 0.8,
+                    "top_k": 40,
+                    "max_output_tokens": 2048,
+                }
+                
+                # Add safety settings to avoid content filtering issues
+                safety_settings = {
+                    "HARASSMENT": "BLOCK_NONE",
+                    "HATE": "BLOCK_NONE",
+                    "SEXUAL": "BLOCK_NONE",
+                    "DANGEROUS": "BLOCK_NONE",
+                }
+                
+                response = model.generate_content(
+                    prompt,
+                    generation_config=generation_config,
+                    safety_settings=safety_settings
+                )
+                diagnosis_text = response.text
+                
+            logger.info(f"Successfully generated diagnosis using model: {model_name}")
+            return diagnosis_text
+            
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Failed to use model {model_name}: {e}")
+            continue
+    
+    # If we've tried all models and none worked
+    logger.error(f"All model attempts failed. Last error: {last_error}")
     try:
-        # Create Gemini model
-        model = genai.GenerativeModel('gemini-pro')
-        
-        # Generate content
-        response = model.generate_content(prompt)
-        
-        # Extract text from response
-        diagnosis_text = response.text
-        return diagnosis_text
+        models = genai.list_models()
+        available_models = [model.name for model in models]
+        logger.error(f"Available models: {available_models}")
+    except Exception as list_error:
+        logger.error(f"Error listing models: {list_error}")
+    
+    raise HTTPException(status_code=500, detail=f"Error generating diagnosis: {last_error}")
+
+
+@app.get("/list_models/")
+async def list_models():
+    try:
+        models = genai.list_models()
+        available_models = [model.name for model in models]
+        return {"available_models": available_models}
     except Exception as e:
-        logger.error("Error generating diagnosis: %s", e)
-        raise HTTPException(status_code=500, detail=f"Error generating diagnosis: {e}")
+        logger.error(f"Error listing models: {e}")
+        raise HTTPException(status_code=500, detail=f"Error listing models: {e}")
 
 
 @app.post("/diagnose/")
@@ -370,20 +437,3 @@ async def diagnose(request: DiagnosisRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
-def list_available_models():
-    try:
-        models = genai.list_models()
-        logger.info("Available models:")
-        for model in models:
-            logger.info(f"- {model.name}")
-        return [model.name for model in models]
-    except Exception as e:
-        logger.error(f"Error listing models: {e}")
-        return []
-
-# Add this endpoint to your FastAPI app:
-@app.get("/list_models/")
-async def list_models():
-    models = list_available_models()
-    return {"available_models": models}
