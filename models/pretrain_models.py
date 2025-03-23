@@ -7,7 +7,7 @@ import requests
 import os
 
 #Vision Transformer (ViT)
-def skintellegent_acne(path: str, distribution=False) -> dict:
+def skintellegent_acne(path: str, top_n = 1) -> dict:
     """
     https://huggingface.co/imfarzanansari/skintelligent-acne#severity-levels
 
@@ -42,22 +42,24 @@ def skintellegent_acne(path: str, distribution=False) -> dict:
         predicted_class = predictions.argmax().item()
         confidence = predictions[0][predicted_class].item()
 
-    if distribution:    
-        result = {}
-        for idx, score in enumerate(predictions[0]):
-            label = model.config.id2label[idx]
-            result[label] = round(score.item(), 4)
+    full_result = {}
+    for idx, score in enumerate(predictions[0]):
+        label = model.config.id2label[idx]
+        full_result[label] = round(score.item(), 4)
+        
+    topk = torch.topk(predictions[0], top_n)
+    indices = topk.indices.tolist()
+    scores = topk.values.tolist()
+        
+    topn_result = {}
+    for idx, score in zip(indices, scores):
+        label = model.config.id2label[idx]
+        topn_result[label] = round(score, 4)
 
-        return result
-    else:
-        result = {
-        "class": model.config.id2label[predicted_class],
-        "confidence": round(confidence, 4)
-        }
-        return result
+    return topn_result
 
 #Vision Transformer (ViT)
-def skin_disease_classifier(path: str, distribution=False) -> dict:
+def skin_disease_classifier(path: str, top_n = 1) -> dict:
     """
     https://huggingface.co/Jayanth2002/dinov2-base-finetuned-SkinDisease
 
@@ -109,20 +111,16 @@ def skin_disease_classifier(path: str, distribution=False) -> dict:
     image = Image.open(path)
     inputs = processor(images=image, return_tensors="pt")
 
-    # Inference (no gradients)
     with torch.no_grad():
         outputs = model(**inputs)
         predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
-        predicted_class = predictions.argmax().item()
-        confidence = predictions[0][predicted_class].item()
 
-    if distribution:    
-        result = {}
-        for idx, score in enumerate(predictions[0]):
-            label = model.config.id2label[idx]
-            result[label] = round(score.item(), 4)
+    result = {}
+    for idx, score in enumerate(predictions[0]):
+        label = model.config.id2label[idx]
+        result[label] = round(score.item(), 4)
 
-        return result
+
     else:
         disease_analysis = {
             "Basal Cell Carcinoma": {
@@ -281,23 +279,31 @@ def skin_disease_classifier(path: str, distribution=False) -> dict:
                 "home_remedy": "Apply cold compresses and use calendula cream for soothing."
             }
         }
-        class_label = model.config.id2label[predicted_class]
-        diagnosis_info = disease_analysis.get(class_label, {
-            "reason": "No information available.",
-            "treatment": "No information available.",
-            "home_remedy": "No information available."
-        })
+        # count of top n we want to include
+        topk = torch.topk(predictions, top_n)
 
-        # Final merged result
-        result = {
-            "class": class_label,
-            "confidence": round(confidence, 4),
-            "details": diagnosis_info
-        }
-        return result
+        indices = topk.indices.flatten().tolist()
+        scores = topk.values.flatten().tolist()
+
+        topn_result = {}
+
+        for idx, score in zip(indices, scores):
+            label = model.config.id2label[idx]
+            details = disease_analysis.get(label, {
+                "reason": "No information available.",
+                "treatment": "No information available.",
+                "home_remedy": "No information available."
+            })
+            topn_result[label] = {
+                "confidence": round(score, 4),
+                "details": details
+            }
+
+        return topn_result
+
 
 #Vision Transformer (ViT)
-def skin_type_classifier(path: str, distribution=False) -> dict:
+def skin_type_classifier(path: str, top_n = 1) -> dict:
     """
     https://huggingface.co/dima806/skin_types_image_detection
 
@@ -325,107 +331,35 @@ def skin_type_classifier(path: str, distribution=False) -> dict:
     with torch.no_grad():
         outputs = model(**inputs)
         predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
-        predicted_class = predictions.argmax().item()
-        confidence = predictions[0][predicted_class].item()
 
-    if distribution:    
-        result = {}
-        for idx, score in enumerate(predictions[0]):
-            label = model.config.id2label[idx]
-            result[label] = round(score.item(), 4)
+    full_result = {}
+    for idx, score in enumerate(predictions[0]):
+        label = model.config.id2label[idx]
+        full_result[label] = round(score.item(), 4)
+        
+    topk = torch.topk(predictions[0], top_n)
+    indices = topk.indices.tolist()
+    scores = topk.values.tolist()
+        
+    topn_result = {}
+    for idx, score in zip(indices, scores):
+        label = model.config.id2label[idx]
+        topn_result[label] = round(score, 4)
 
-        return result
-    else:
-        result = {
-        "class": model.config.id2label[predicted_class],
-        "confidence": round(confidence, 4)
-        }
-        return result
-
-
-def skin_cancer_classifier(path: str, distribution=False) -> dict:
-    """
-    https://huggingface.co/Anwarkh1/Skin_Cancer-Image_Classification
-
-    Classifies skin cancer type from an input image.
-
-    Cancer Types:
-    - Actinic Keratosis
-    - Basal Cell Carcinoma
-    - Dermatofibroma
-    - Melanocytic Nevi
-    - Vascular Lesions
-    - Benign Keratosis
-    - Melanoma
-    - Squamous Cell Carcinoma
-
-    Args:
-        path (str): Path to the input skin image.
-        distribution (bool): Whether to return confidence scores for all classes.
-
-    Returns:
-        dict: Predicted skin cancer type and confidence score, or full class distribution if specified.
-    """
-    # Load model and processor
-    processor = AutoImageProcessor.from_pretrained("Anwarkh1/Skin_Cancer-Image_Classification")
-    model = AutoModelForImageClassification.from_pretrained("Anwarkh1/Skin_Cancer-Image_Classification")
-
-    # Load and preprocess image
-    image = Image.open(path)
-    inputs = processor(images=image, return_tensors="pt")
-
-    with torch.no_grad():
-        outputs = model(**inputs)
-        predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
-        predicted_class = predictions.argmax().item()
-        confidence = predictions[0][predicted_class].item()
-
-    if distribution:
-        result = {}
-        for idx, score in enumerate(predictions[0]):
-            label = model.config.id2label[idx]
-            result[label] = round(score.item(), 4)
-        return result
-    else:
-        result = {
-            "class": model.config.id2label[predicted_class],
-            "confidence": round(confidence, 4)
-        }
-        return result
+    return topn_result
 
 
 def parallel_vit_process(path: str) -> dict:
-    """
-    Runs all Vision Transformer-based classifiers in parallel on the input image
-    and merges the outputs into a single dictionary.
-
-    Args:
-        path (str): Path to the input skin image.
-
-    Returns:
-        dict: Combined dictionary with outputs from all classifiers.
-    """
-
     result = {}
-
-    # Define all functions to run
-    with ThreadPoolExecutor() as executor:
-        futures = {
-            "acne": executor.submit(skintellegent_acne, path),
-            "disease": executor.submit(skin_disease_classifier, path),
-            "type": executor.submit(skin_type_classifier, path),
-            "cancer": executor.submit(skin_cancer_classifier, path)
-        }
-
-        # Gather all results
-        for key, future in futures.items():
-            result[key] = future.result()
-
+    # pre: only keep top_n <=3
+    result["acne"] = skintellegent_acne(path, 2)
+    result["disease"] = skin_disease_classifier(path, 2)
+    result["type"] = skin_type_classifier(path, 2)
     return result
 
 
 
-testing = False
+testing = True
 if testing:
     # Image URL
     url = "https://www.dermaamin.com/site/images/clinical-pic/n/neurofibromatosis-von-reckling-hausen-syndrome/neurofibromatosis-von-reckling-hausen-syndrome90.jpg"
@@ -448,10 +382,8 @@ if testing:
     else:
         print("Image already exists.")
 
-    #print(parallel_vit_process(filename))
 
-    #print(skintellegent_acne(image_path, True))
+    #print(skintellegent_acne(filename, True, 1))
     #print(skin_disease_classifier(filename))
     #print(skin_type_classifier(image_path, True))
-    #print(skin_cancer_classifier(image_path, True))
     print(parallel_vit_process(filename))
