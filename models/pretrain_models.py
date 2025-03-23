@@ -71,7 +71,7 @@ def skin_disease_classifier(path: str, top_n = 1) -> dict:
     - Epidermolysis Bullosa Pruriginosa
     - Hailey-Hailey Disease
     - Herpes Simplex
-    - Impetigo
+    - Impetigo 
     - Larva Migrans
     - Leprosy (Borderline, Lepromatous, Tuberculoid)
     - Lichen Planus
@@ -359,31 +359,3 @@ def parallel_vit_process(path: str) -> dict:
 
 
 
-testing = True
-if testing:
-    # Image URL
-    url = "https://www.dermaamin.com/site/images/clinical-pic/n/neurofibromatosis-von-reckling-hausen-syndrome/neurofibromatosis-von-reckling-hausen-syndrome90.jpg"
-    filename = "neurofibromatosis-von-reckling-hausen-syndrome90.jpg"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
-    }
-
-    print("working")
-    # Download the image only if it doesn't exist
-    import os
-    if not os.path.exists(filename):
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            with open(filename, 'wb') as f:
-                f.write(response.content)
-            print(f"Image saved as {filename}")
-        else:
-            print("Failed to download image.")
-    else:
-        print("Image already exists.")
-
-
-    #print(skintellegent_acne(filename, True, 1))
-    #print(skin_disease_classifier(filename))
-    #print(skin_type_classifier(image_path, True))
-    print(parallel_vit_process(filename))
