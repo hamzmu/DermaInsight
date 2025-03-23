@@ -1,3 +1,8 @@
+fastapi
+uvicorn
+jinja2
+python-multipart
 transformers
 torch
 Pillow
+requests

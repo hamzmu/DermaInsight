@@ -30,13 +30,16 @@ async def upload(request: Request, prompt: str = Form(""), file: UploadFile = Fi
         shutil.copyfileobj(file.file, buffer)
     
     # Run models
-    result = models.pretrain_models.parallel_vit_process(save_path)
+    vit_results = models.pretrain_models.parallel_vit_process(save_path)
     os.remove(save_path)  # Clean up temp file
+    user_prompt = prompt
+
+    #TODO: f(vit_results, user_prompt) 
 
     return templates.TemplateResponse("result.html", {
         "request": request,
         "prompt": prompt,
-        "result": result
+        "result": vit_results
     })
 
 if __name__ == "__main__":
