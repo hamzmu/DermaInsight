@@ -315,125 +315,69 @@ def rerank_chunks(query: str, chunks: list) -> list:
 
 # Define a Pydantic model for request validation
 class DiagnosisRequest(BaseModel):
-    symptoms: str
-
-
-def diagnose_with_gemini(query: str, context: list) -> str:
-    # Limit context to prevent exceeding Gemini's input limits
-    max_context_length = 10000
-    context_text = ""
-    for chunk in context:
-        if len(context_text) + len(chunk) < max_context_length:
-            context_text += chunk + "\n\n"
-        else:
-            break
-        
-    prompt = f"""
-    You are an expert dermatologist AI assistant. Your task is to diagnose a skin condition based on user symptoms and relevant literature.
-
-    **Patient Symptoms:** {query}
-    **Relevant Dermatology Texts:**
-    {context_text}
-
-    **Diagnosis:**
-    - List possible conditions with confidence scores (e.g., 80% Eczema, 20% Psoriasis).
-    - Suggest follow-up questions if necessary.
-    - Provide recommended treatments.
-    """
-    
-    # Model candidates to try in order
-    model_candidates = [
-        'gemini-1.0-pro',
-        'gemini-1.5-pro', 
-        'gemini-1.5-flash',
-        'models/text-bison-001'
-    ]
-    
-    last_error = None
-    for model_name in model_candidates:
-        try:
-            logger.info(f"Attempting to use model: {model_name}")
-            
-            # PaLM models use a different API pattern than Gemini
-            if model_name.startswith('models/'):
-                # Use TextGenerationModel for PaLM models
-                palm_model = genai.TextGenerationModel(model_name)
-                response = palm_model.generate_text(
-                    prompt=prompt, 
-                    temperature=0.2,
-                    max_output_tokens=2048
-                )
-                diagnosis_text = response.result
-            else:
-                # Use GenerativeModel for Gemini models
-                model = genai.GenerativeModel(model_name)
-                
-                # Generate content with configurations
-                generation_config = {
-                    "temperature": 0.2,  # Lower temperature for more deterministic outputs
-                    "top_p": 0.8,
-                    "top_k": 40,
-                    "max_output_tokens": 2048,
-                }
-                
-                # Add safety settings to avoid content filtering issues
-                safety_settings = {
-                    "HARASSMENT": "BLOCK_NONE",
-                    "HATE": "BLOCK_NONE",
-                    "SEXUAL": "BLOCK_NONE",
-                    "DANGEROUS": "BLOCK_NONE",
-                }
-                
-                response = model.generate_content(
-                    prompt,
-                    generation_config=generation_config,
-                    safety_settings=safety_settings
-                )
-                diagnosis_text = response.text
-                
-            logger.info(f"Successfully generated diagnosis using model: {model_name}")
-            return diagnosis_text
-            
-        except Exception as e:
-            last_error = e
-            logger.warning(f"Failed to use model {model_name}: {e}")
-            continue
-    
-    # If we've tried all models and none worked
-    logger.error(f"All model attempts failed. Last error: {last_error}")
-    try:
-        models = genai.list_models()
-        available_models = [model.name for model in models]
-        logger.error(f"Available models: {available_models}")
-    except Exception as list_error:
-        logger.error(f"Error listing models: {list_error}")
-    
-    raise HTTPException(status_code=500, detail=f"Error generating diagnosis: {last_error}")
-
-
-@app.get("/list_models/")
-async def list_models():
-    try:
-        models = genai.list_models()
-        available_models = [model.name for model in models]
-        return {"available_models": available_models}
-    except Exception as e:
-        logger.error(f"Error listing models: {e}")
-        raise HTTPException(status_code=500, detail=f"Error listing models: {e}")
-
+    vit_analysis: dict
+    user_input: str
+    combined_query: str
 
 @app.post("/diagnose/")
 async def diagnose(request: DiagnosisRequest):
-    symptoms = request.symptoms
-    retrieved_chunks = search_pinecone(symptoms)
-    if not retrieved_chunks:
-        raise HTTPException(status_code=404, detail="No relevant data found in Pinecone index.")
-    top_chunks = rerank_chunks(symptoms, retrieved_chunks)
-    diagnosis = diagnose_with_gemini(symptoms, top_chunks)
-    return {"diagnosis": diagnosis}
+    try:
+        combined_query = request.combined_query
+        vit_analysis = request.vit_analysis
+        user_input = request.user_input
+        
+        # Retrieve and rerank context
+        retrieved_chunks = search_pinecone(combined_query)
+        top_chunks = rerank_chunks(combined_query, retrieved_chunks)[:3]
+        
+        # Build multimodal prompt
+        prompt = f"""**Multimodal Dermatology Analysis Request**
 
+Image Analysis Results:
+{format_vit_results(vit_analysis)}
+
+Patient Description:
+{user_input}
+
+Relevant Medical Context:
+{'\n\n'.join(top_chunks)}
+
+Required Output:
+1. Differential diagnosis with confidence percentages
+2. Recommended diagnostic tests
+3. Treatment options (first-line and alternatives)
+4. Patient guidance
+5. Urgency level (1-5 scale)"""
+        
+        diagnosis = generate_gemini_response(prompt)
+        return {"diagnosis": diagnosis}
+    
+    except Exception as e:
+        logger.error(f"Diagnosis pipeline failed: {e}")
+        raise HTTPException(status_code=500, detail="Our AI system is currently unavailable. Please consult a dermatologist immediately.")
+
+def format_vit_results(results: dict) -> str:
+    formatted = []
+    for category, data in results.items():
+        formatted.append(f"{category.capitalize()}: {data.get('class', 'N/A')} "
+                        f"(Confidence: {data.get('confidence', 0)*100:.1f}%)")
+    return "\n".join(formatted)
+
+def generate_gemini_response(prompt: str) -> str:
+    try:
+        model = genai.GenerativeModel('gemini-1.5-pro')
+        response = model.generate_content(
+            prompt,
+            generation_config={"temperature": 0.3, "max_output_tokens": 2048},
+            safety_settings={"HARASSMENT": "BLOCK_NONE", "HATE": "BLOCK_NONE", 
+                            "SEXUAL": "BLOCK_NONE", "DANGEROUS": "BLOCK_NONE"}
+        )
+        return response.text
+    except Exception as e:
+        logger.error(f"Failed to generate response: {e}")
+        return "Our AI system is currently unavailable. Please consult a dermatologist immediately."
 
 # Start the FastAPI application with Uvicorn when running this script directly.
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("rag_model:app", host="127.0.0.1", port=8001, reload=True)

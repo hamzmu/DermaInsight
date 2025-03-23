@@ -1,19 +1,43 @@
+<!DOCTYPE html>
 <html>
-    <head>
-        <title>DermaInsight Results</title>
-        <link rel="stylesheet" type="text/css" href="/static/style.css">
-    </head>
-    <body>
-        <h1 class="title">DermaInsight - Results</h1>
-        <div class="container">
-            {% if result %}
-            <h3>Model Results:</h3>
-            <p> {{result}}</p>
-            {% else %}
-            <p>No image uploaded, nothing processed.</p>
-            {% endif %}
-            <br/>
-            <a href="/">Go Back</a>
+<head>
+    <title>Diagnosis Results</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>AI Dermatology Report</h1>
+        
+        {% if show_image %}
+        <div class="image-section">
+            <h2>Image Analysis</h2>
+            <div class="image-results">
+                <div class="result-card">
+                    <h3>🧬 Skin Type</h3>
+                    <p>{{ image_analysis.type.class }} ({{ (image_analysis.type.confidence * 100)|round(1) }}%)</p>
+                </div>
+                <div class="result-card">
+                    <h3>⚠️ Detected Condition</h3>
+                    <p>{{ image_analysis.disease.class }} ({{ (image_analysis.disease.confidence * 100)|round(1) }}%)</p>
+                </div>
+                <div class="result-card">
+                    <h3>🩺 Cancer Risk</h3>
+                    <p>{{ image_analysis.cancer.class }} ({{ (image_analysis.cancer.confidence * 100)|round(1) }}%)</p>
+                </div>
+            </div>
         </div>
-    </body>
+        {% endif %}
+
+        <div class="diagnosis-section">
+            <h2>Comprehensive Diagnosis</h2>
+            <div class="diagnosis-card">
+                <pre>{{ diagnosis }}</pre>
+            </div>
+        </div>
+
+        <div class="disclaimer">
+            <p>⚠️ This AI analysis is not a substitute for professional medical advice. Always consult a qualified dermatologist for diagnosis and treatment.</p>
+        </div>
+    </div>
+</body>
 </html>
