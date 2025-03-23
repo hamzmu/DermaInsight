@@ -68,7 +68,9 @@ button:hover {
     padding: 15px;
     border-radius: 4px;
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-    white-space: pre-wrap;
+    overflow-wrap: break-word; /* Wraps long words /
+    word-wrap: break-word;
+    white-space: normal; / Ensures wrapping */
 }
 
 .disclaimer {

@@ -8,6 +8,7 @@ import os
 import logging
 import models.pretrain_models
 import requests
+from markdown import markdown
 
 app = FastAPI()
 
@@ -55,6 +56,7 @@ async def upload(request: Request, prompt: str = Form(""), file: UploadFile = Fi
             )
             response.raise_for_status()
             output = response.json().get("diagnosis", "No diagnosis available.")
+            output = markdown(output)
         except Exception as e:
             logger.error(f"Diagnosis API call failed: {e}")
             return templates.TemplateResponse("error.html", {
